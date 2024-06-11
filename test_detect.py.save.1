@@ -1,0 +1,58 @@
+import cv2
+import numpy as np
+
+def detect_test_tubes(image_path):
+    # Đọc ảnh
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"Không thể đọc ảnh từ {image_path}. Hãy kiểm tra lại đường dẫn.")
+        return None, None
+
+    # Cắt ảnh từ y=110 đến y=165
+    image = image[110:165, :]
+
+    # Chuyển đổi ảnh sang thang độ xám
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Áp dụng Gaussian Blur để làm mờ ảnh và giảm nhiễu
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Sử dụng thresholding để chuyển đổi ảnh thành nhị phân
+    _, thresh = cv2.threshold(blurred, 50, 255, cv2.THRESH_BINARY_INV)
+
+    # Đảo ngược giá trị nhị phân trong ảnh nhị phân
+    inverted_thresh = cv2.bitwise_not(thresh)
+
+    # Tìm các contours trong ảnh nhị phân đảo ngược
+    contours, _ = cv2.findContours(inverted_thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Lọc các contours để lấy các ống nghiệm
+    test_tubes = []
+    for contour in contours:
+        # Bỏ qua các contour nhỏ hoặc không phải hình chữ nhật
+        if cv2.contourArea(contour) < 100:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        aspect_ratio = h / w
+        if 2 <= aspect_ratio <= 5:  # Giả sử ống nghiệm có tỉ lệ khung hình nằm trong khoảng này
+            test_tubes.append((x, y, w, h))
+
+    # Trích xuất màu trung bình của mỗi ống nghiệm
+    colors = []
+    for (x, y, w, h) in test_tubes:
+        roi = image[y:y+h, x:x+w]
+        avg_color = cv2.mean(roi)[:3]  # Trích xuất giá trị màu trung bình
+        colors.append(avg_color)
+
+    return len(test_tubes), colors
+
+# Sử dụng hàm
+image_path = '/home/lamp/test_camera/mau_ong_nghiem.jpg'
+num_test_tubes, test_tube_colors = detect_test_tubes(image_path)
+
+if num_test_tubes is not None:
+    print(f'Tìm thấy {num_test_tubes} ống nghiệm.')
+    for i, color in enumerate(test_tube_colors):
+        print(f'Ống nghiệm {i + 1}: RGB{color}')
+else:
+    print('Đã xảy ra lỗi trong quá trình xử lý ảnh.')
